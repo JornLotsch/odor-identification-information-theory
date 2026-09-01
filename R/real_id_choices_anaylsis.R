@@ -644,9 +644,9 @@ hamming_plot_foreseeable_patterns <-
     ggplot2::scale_fill_manual(values = c("Observed patients" = "dodgerblue",
                                           "Random choice (simulated)" = "grey60")) +
     ggplot2::labs(
-      title    = "Distance to the nearest foreseeable response pattern",
+      title    = "Distance to the nearest foreseeable\nresponse pattern",
       subtitle = sprintf(
-        "Hamming distance to the closest of %d a priori templates; %d patients, %d simulated random sequences",
+        "Hamming distance to the closest of %d a priori templates; \n %d patients, %d simulated random sequences",
         n_templates, n_obs, n_sim
       ),
       x    = "Hamming distance to nearest template (0 = exact match)",
@@ -654,13 +654,13 @@ hamming_plot_foreseeable_patterns <-
       fill = NULL
     ) +
     ggplot2::theme_bw() +
-    ggplot2::theme(legend.position.inside = TRUE, legend.position = c(.2,.8))
+    ggplot2::theme(legend.position.inside = TRUE, legend.position = c(.3,.8), axis.title.x = element_text(size = 10))
 
 
 
 print(hamming_plot_foreseeable_patterns)
 
-ggplot2::ggsave(filename = "hamming_plot_foreseeable_patterns.svg", plot = hamming_plot_foreseeable_patterns, height = 8, width = 4)
+ggplot2::ggsave(filename = "hamming_plot_foreseeable_patterns.svg", plot = hamming_plot_foreseeable_patterns, height = 8, width = 5)
 
 
 # =============================================================================
