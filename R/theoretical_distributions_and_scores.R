@@ -1241,7 +1241,8 @@ designs <- list(
   L16_k6 = list(L = 16L, k = 6L),
   L24_k6 = list(L = 24L, k = 6L),
   L40_k4 = list(L = 40L, k = 4L),
-  L3_k4 = list(L = 3L, k = 4L)
+  L3_k4  = list(L = 3L,  k = 4L),
+  L4_k4  = list(L = 4L,  k = 4L)
 )
 
 chance_plots <- list()
@@ -1995,6 +1996,94 @@ write.csv(
   row.names = FALSE,
   na = ""
 )
+
+# =============================================================================
+# 21. Maximum information across designs (L × k overview plot)
+# =============================================================================
+
+# Dense grids: constrained points (L divisible by k) plus non-divisible endpoints
+overview_grid <- rbind(
+  data.frame(L = c(3L, seq(4L, 40L, by = 4L)),          k = 4L),
+  data.frame(L = c(3L, 4L, seq(6L, 36L, by = 6L), 40L), k = 6L)
+)
+
+# Reuse already-computed values where available; fall back to unconstrained max
+get_cached_I_max <- function(L_val, k_val) {
+  for (d in distribution_objects) {
+    if (d$L == L_val && d$k == k_val) {
+      if (is.finite(d$I_max_reference)) return(d$I_max_reference)
+      if (!is.null(d$I_unconstrained))  return(max(d$I_unconstrained, na.rm = TRUE))
+    }
+  }
+  NA_real_
+}
+
+overview_grid$I_max <- mapply(get_cached_I_max, overview_grid$L, overview_grid$k)
+
+missing_idx <- which(!is.finite(overview_grid$I_max))
+
+# Helper: constrained max when L%%k==0, otherwise unconstrained max
+compute_overview_I_max <- function(L_val, k_val, n_sim = 20000L, seed = 123L) {
+  if (L_val %% k_val == 0L) {
+    compute_I_max(
+      L = L_val, k = k_val, n_sim = n_sim, seed = seed,
+      mc.cores = 1L, weights = WEIGHTS
+    )$I_max
+  } else {
+    seeds <- make_replicate_seeds(n_sim, seed)
+    I_vals <- vapply(seq_len(n_sim), function(i) {
+      informativeness_score_general(
+        generate_unconstrained_sequence(L_val, k_val, seeds[i]),
+        k = k_val, weights = WEIGHTS
+      )$score
+    }, numeric(1L))
+    max(I_vals, na.rm = TRUE)
+  }
+}
+
+if (length(missing_idx) > 0L) {
+  cat(sprintf(
+    "Computing I_max for %d new (L, k) pairs...\n", length(missing_idx)
+  ))
+  new_vals <- pbmcapply::pbmclapply(
+    missing_idx,
+    function(i) compute_overview_I_max(overview_grid$L[i], overview_grid$k[i]),
+    mc.cores    = max(1L, parallel::detectCores() - 1L),
+    mc.set.seed = FALSE
+  )
+  overview_grid$I_max[missing_idx] <- unlist(new_vals)
+}
+
+overview_grid$k_label <- factor(paste0("k = ", overview_grid$k))
+
+design_overview_plot <- ggplot(
+    overview_grid,
+    aes(x = L, y = I_max, colour = k_label, group = k_label)
+  ) +
+  geom_line(linewidth = 0.7) +
+  geom_point(size = 2.0) +
+  scale_x_continuous(breaks = sort(unique(overview_grid$L))) +
+  labs(
+    title   = "Maximum Constrained Information Score by Design",
+    subtitle = "Maximum over 20,000 Monte Carlo sequences; constrained (L divisible by k) or unconstrained otherwise",
+    x       = "Number of test items (L)",
+    y       = "Maximum I(X) [bit]",
+    colour  = "Alternatives"
+  ) +
+  theme_plot() +
+  theme(legend.position.inside = TRUE, legend.position = c(.8,.2)) +
+  scale_color_manual(values = ggthemes::colorblind_pal()(8)[2:3])
+
+print(design_overview_plot)
+
+ggsave(
+  filename = "design_overview_I_max.svg",
+  plot     = design_overview_plot,
+  width    = 9,
+  height   = 5,
+  dpi      = 180
+)
+
 
 # =============================================================================
 # End of file
