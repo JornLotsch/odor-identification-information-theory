@@ -37,7 +37,38 @@ It includes:
 - reference intervals and summary tables used to interpret empirical and theoretical values
 - plots comparing observed or expected score distributions with random-choice baselines
 
+### Sequence files for independent evaluation
+
+The [Sequences](./Sequences) folder provides the first 100 unique sequences ranked by informativeness score $I$ for each available test design, or all available unique sequences when fewer than 100 were retained. These files are provided for readers who want to inspect the calculated sequences or independently evaluate possible response keys. They are named
+`scores_L< L >_k< k >_top_sequences.txt`, where $L$ is the number of trials and $k$ is the number of response alternatives.
+
+Each file contains the unconstrained sequences first. When a constrained equal-frequency analysis is possible, the constrained sequences follow after a heading such as:
+
+```text
+--- Top 100 unique constrained sequences by I score (L=18, k=6) ---
+```
+
+The constrained section is the relevant section when selecting a balanced test response key: every response position occurs equally often in these sequences. To use a file, select the file matching the desired $L$ and $k$, then read the sequence entries under the constrained heading. The digits in each sequence identify the response position selected on each trial.
+
+An equal-frequency constraint can be applied only when $L$ is a multiple of $k$; a constrained section is included only for designs for which constrained sequences were retained. If no constrained section is present, the file contains only a heading such as:
+
+```text
+--- Top 100 unique unconstrained sequences by I score (L=18, k=6) ---
+```
+
+In that case, the listed sequences are still ranked candidates for independent evaluation, but they do not guarantee equal use of all response positions. The unconstrained sequences are also useful as a reference for comparing balanced and unrestricted sequence structures.
+
 This component supports the paper's methodological framing: the sequence of correct-answer positions can be characterized in terms of balance and unpredictability, not only by overall score.
+
+### Interpretation and design implications
+
+The analysis treats the ordered sequence of correct response positions as a measurable property of a forced-choice test design, in addition to the usual test length $L$ and number of alternatives $k$. The block-entropy measures $H1$, $H2$, and $H3$ capture marginal balance and local sequence predictability; their weighted combination gives the informativeness score $I(X)$ and its per-trial form. The resulting candidates can therefore be ranked to identify balanced, locally unpredictable, and maximally or near-maximally informative response keys within a fixed test format.
+
+This sequence analysis does not replace conventional clinical scoring. Participant performance remains the number of correctly identified odors, with its usual binomial chance interpretation. Informativeness describes the response key and the extent to which its structure avoids predictable positional patterns that could support non-olfactory response strategies.
+
+For a fixed format, response keys can be generated and evaluated before administration, then selected from a predefined catalogue or deployed randomly from that catalogue. The established odor items, response format, and interpretation of participant scores remain unchanged. Reporting the implemented sequence, or its catalogue identifier, makes the administered key reproducible without requiring every future administration to use the same fixed sequence. The workflow also supports retrospective comparison of published test versions and comparison of candidate formats using a common information-based scale.
+
+For reproducible reporting, describe the conventional test parameters together with response-position balance, $H1$, $H2$, $H3$, total or per-trial informativeness, relative efficiency when available, and the selected sequence or catalogue identifier. Shannon-based entropy measures, binomial chance probabilities, and Hamming distance serve complementary purposes: they characterize design structure, participant-score chance performance, and similarity to foreseeable response patterns, respectively.
 
 ### 2) Empirical analysis of real response choices
 

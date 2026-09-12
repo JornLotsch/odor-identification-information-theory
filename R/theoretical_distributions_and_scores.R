@@ -1127,7 +1127,9 @@ analyze_score_distributions <- function(
 # seed vector are parallel: score[i] was produced by seed[i]. The function
 # exports up to top_n distinct sequences, ordered by decreasing I(X).
 
-save_top_sequences <- function(dist_obj, output_prefix, top_n = 10L) {
+top_n_default <- 100L
+
+save_top_sequences <- function(dist_obj, output_prefix, top_n = top_n_default) {
   L <- dist_obj$L
   k <- dist_obj$k
   
@@ -1324,7 +1326,7 @@ for (design_name in names(designs)) {
   save_top_sequences(
     dist_obj      = dist_obj,
     output_prefix = paste0("scores_", design_name),
-    top_n         = 10L
+    top_n         = top_n_default
   )
 }
 

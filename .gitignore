@@ -26,3 +26,8 @@ main.py
 *.code-workspace
 !/scores_L18_k6_I_constrained_density.svg
 
+# Keep the curated sequence catalogue and its contents
+!Sequences/
+!Sequences/*.csv
+!Sequences/*.txt
+
