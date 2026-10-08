@@ -29,7 +29,23 @@
 
 # ---- External functions and parameters ---------------------------------------------------
 
-source("globals.R")
+resolve_project_dir <- function() {
+  if (!is.null(sys.frames()[[1]]$ofile)) {
+    return(dirname(normalizePath(sys.frames()[[1]]$ofile)))
+  }
+
+  if (file.exists("globals.R")) {
+    return(getwd())
+  }
+
+  if (file.exists(file.path("R", "globals.R"))) {
+    return(file.path(getwd(), "R"))
+  }
+
+  stop("Could not locate globals.R relative to the script or repository root.")
+}
+
+source(file.path(resolve_project_dir(), "globals.R"))
 
 
 # =============================================================================
@@ -515,7 +531,7 @@ get_feasible_reference <- function(
 
 
 # =============================================================================
-# 6. Reference distributions for I(X)
+# 7. Reference distributions for I(X)
 # =============================================================================
 
 summarize_numeric_distribution <- function(x) {
@@ -671,7 +687,7 @@ compute_score_distributions <- function(
 
 
 # =============================================================================
-# 7. Relative efficiency E(X)
+# 8. Relative efficiency E(X)
 # =============================================================================
 
 # E(X) = I(X) / I_max^(c)
@@ -715,7 +731,7 @@ compute_E_feasible <- function(I_obs, feasible_ref) {
 
 
 # =============================================================================
-# 8. Empirical upper-tail tables for I(X)
+# 9. Empirical upper-tail tables for I(X)
 # =============================================================================
 
 create_score_tail_table <- function(
@@ -770,7 +786,7 @@ create_score_tail_table <- function(
 
 
 # =============================================================================
-# 9. Summary tables for I(X)
+# 10. Summary tables for I(X)
 # =============================================================================
 
 create_score_summary_table <- function(dist_obj, score_type = "I") {
@@ -829,7 +845,7 @@ create_score_summary_table <- function(dist_obj, score_type = "I") {
 
 
 # =============================================================================
-# 10. Plots with exact score-axis thresholds
+# 11. Plots with exact score-axis thresholds
 # =============================================================================
 
 plot_score_distribution <- function(
@@ -999,7 +1015,7 @@ plot_score_reference <- function(
 
 
 # =============================================================================
-# 11. Complete analysis and output for one design
+# 12. Complete analysis and output for one design
 # =============================================================================
 
 analyze_score_distributions <- function(
@@ -1120,14 +1136,17 @@ analyze_score_distributions <- function(
 
 
 # =============================================================================
-# 12. Top-scoring sequence extraction
+# 13. Top-scoring sequence extraction
 # =============================================================================
 
 # For each design type (unconstrained / constrained), the score vector and
 # seed vector are parallel: score[i] was produced by seed[i]. The function
-# exports up to top_n distinct sequences, ordered by decreasing I(X).
+# exports up to top_n distinct sequences, ordered by decreasing I(X) and,
+# within blocks of equal I(X), by decreasing minimum and then mean Hamming
+# distance to all other sequences of the block (minHD, meanHD; NA for
+# single-member blocks).
 
-top_n_default <- 100L
+top_n_default <- 300L
 
 save_top_sequences <- function(dist_obj, output_prefix, top_n = top_n_default) {
   L <- dist_obj$L
@@ -1159,23 +1178,63 @@ save_top_sequences <- function(dist_obj, output_prefix, top_n = top_n_default) {
     
     unique_idx <- integer(0)
     seen_sequences <- character(0)
-    
+    top_sequences <- list()
+
     for (i in ordered_idx) {
       seq_i <- cfg$gen_fn(L, k, cfg$seeds[i])
       sequence_key <- paste(seq_i, collapse = "")
-      
+
       if (!sequence_key %in% seen_sequences) {
         unique_idx <- c(unique_idx, i)
         seen_sequences <- c(seen_sequences, sequence_key)
+        top_sequences[[length(top_sequences) + 1L]] <- seq_i
       }
-      
+
       if (length(unique_idx) >= top_n) {
         break
       }
     }
-    
+
     n_top <- length(unique_idx)
-    
+
+    # Compare every selected top sequence with all other selected top
+    # sequences. minHD is the minimum Hamming distance to any other selected
+    # sequence, and meanHD is the corresponding mean Hamming distance.
+    # These values are NA only if fewer than two top sequences are available.
+    # Ordering remains primarily by decreasing I(X), then by decreasing
+    # minHD and meanHD. I is rounded so that values differing only by
+    # floating-point summation noise are treated as ties for the primary
+    # ordering key.
+    I_top <- cfg$I_vec[unique_idx]
+    block_id <- round(I_top, 10)
+    seq_mat <- do.call(rbind, top_sequences)
+    min_hamming <- rep(NA_real_, n_top)
+    mean_hamming <- rep(NA_real_, n_top)
+
+    if (n_top >= 2L) {
+      dist_mat <- vapply(
+        seq_len(n_top),
+        function(j) colSums(t(seq_mat) != seq_mat[j, ]),
+        numeric(n_top)
+      )
+
+      diag(dist_mat) <- NA
+
+      min_hamming <- apply(dist_mat, 1, min, na.rm = TRUE)
+      mean_hamming <- rowMeans(dist_mat, na.rm = TRUE)
+    }
+
+    new_order <- order(
+      -block_id,
+      -ifelse(is.na(min_hamming), -Inf, min_hamming),
+      -ifelse(is.na(mean_hamming), -Inf, mean_hamming),
+      seq_len(n_top)
+    )
+    unique_idx    <- unique_idx[new_order]
+    top_sequences <- top_sequences[new_order]
+    min_hamming   <- min_hamming[new_order]
+    mean_hamming  <- mean_hamming[new_order]
+
     header <- sprintf(
       "--- Top %d unique %s sequences by I score (L=%d, k=%d) ---",
       n_top, cfg$label, L, k
@@ -1184,21 +1243,23 @@ save_top_sequences <- function(dist_obj, output_prefix, top_n = top_n_default) {
     all_lines <- c(all_lines, header)
     
     colheader <- sprintf(
-      "%-6s %-10s %-12s %s",
-      "Rank", "I", "seed", "sequence"
+      "%-6s %-10s %-6s %-8s %-12s %s",
+      "Rank", "I", "minHD", "meanHD", "seed", "sequence"
     )
     cat(colheader, "\n")
     all_lines <- c(all_lines, colheader)
-    
+
     for (rank in seq_along(unique_idx)) {
       i <- unique_idx[rank]
-      seq_i <- cfg$gen_fn(L, k, cfg$seeds[i])
+      seq_i <- top_sequences[[rank]]
       I_i <- cfg$I_vec[i]
-      
+
       line <- sprintf(
-        "%-6d %-10.4f %-12d %s",
+        "%-6d %-10.4f %-6s %-8s %-12d %s",
         rank,
         I_i,
+        if (is.na(min_hamming[rank])) "NA" else sprintf("%d", as.integer(min_hamming[rank])),
+        if (is.na(mean_hamming[rank])) "NA" else sprintf("%.3f", mean_hamming[rank]),
         cfg$seeds[i],
         paste(seq_i, collapse = "")
       )
@@ -1220,12 +1281,12 @@ save_top_sequences <- function(dist_obj, output_prefix, top_n = top_n_default) {
 
 
 # =============================================================================
-# 13. Run all designs
+# 14. Run all designs
 # =============================================================================
 
 # Set this to 1 for exact reproducibility across platforms and core counts.
 # Increase it after validation if desired.
-MC_CORES <- 1L
+MC_CORES <- parallel::detectCores() -1
 
 N_SIM <- 100000L
 N_SIM_MAX <- 100000L
@@ -1332,7 +1393,7 @@ for (design_name in names(designs)) {
 
 
 # =============================================================================
-# 14. Summary table: mean and 95% reference interval of I(X)
+# 15. Summary table: mean and 95% reference interval of I(X)
 # =============================================================================
 
 # The 95% interval is a reference interval for simulated sequences:
@@ -1511,7 +1572,7 @@ write.csv(
 
 
 # =============================================================================
-# 14. Create publication plot
+# 16. Create publication plot
 # =============================================================================
 
 combined_distributions_plot <-
@@ -1562,7 +1623,7 @@ ggsave(filename = "combined_distributions_plot.svg", plot = combined_distributio
 
 
 # =============================================================================
-# 15. Analysis of published, modified, and candidate sequences
+# 17. Analysis of published, modified, and candidate sequences
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -1667,7 +1728,7 @@ sequence_list <- list(
 
 
 # =============================================================================
-# 16. Helper function: analyse one sequence
+# 18. Helper function: analyse one sequence
 # =============================================================================
 
 analyse_sequence <- function(sequence_info,
@@ -1871,7 +1932,7 @@ analyse_sequence <- function(sequence_info,
 
 
 # =============================================================================
-# 17. Analyse all supplied sequences using lapply()
+# 19. Analyse all supplied sequences using lapply()
 # =============================================================================
 
 sequence_results <- lapply(
@@ -1885,7 +1946,7 @@ names(sequence_results) <- names(sequence_list)
 
 
 # =============================================================================
-# 18. Print individual sequence results
+# 20. Print individual sequence results
 # =============================================================================
 
 for (result_name in names(sequence_results)) {
@@ -1938,7 +1999,7 @@ for (result_name in names(sequence_results)) {
 
 
 # =============================================================================
-# 19. Assemble Table 1 for publication
+# 21. Assemble Table 1 for publication
 # =============================================================================
 
 table_1_publication <- do.call(
@@ -1972,7 +2033,7 @@ write.csv(
 
 
 # =============================================================================
-# 20. Write a compact Word-oriented table
+# 22. Write a compact Word-oriented table
 # =============================================================================
 
 # This compact version corresponds most closely to your current Table 1 layout.
@@ -2000,7 +2061,7 @@ write.csv(
 )
 
 # =============================================================================
-# 21. Maximum information across designs (L × k overview plot)
+# 23. Maximum information across designs (L × k overview plot)
 # =============================================================================
 
 # Dense grids: constrained points (L divisible by k) plus non-divisible endpoints

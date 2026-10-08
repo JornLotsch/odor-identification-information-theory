@@ -30,4 +30,5 @@ main.py
 !Sequences/
 !Sequences/*.csv
 !Sequences/*.txt
+*.pdf
 

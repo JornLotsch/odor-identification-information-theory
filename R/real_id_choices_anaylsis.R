@@ -10,7 +10,23 @@
 
 # ---- External functions and parameters --------------------------------------
 
-source("globals.R")
+resolve_project_dir <- function() {
+  if (!is.null(sys.frames()[[1]]$ofile)) {
+    return(dirname(normalizePath(sys.frames()[[1]]$ofile)))
+  }
+
+  if (file.exists("globals.R")) {
+    return(getwd())
+  }
+
+  if (file.exists(file.path("R", "globals.R"))) {
+    return(file.path(getwd(), "R"))
+  }
+
+  stop("Could not locate globals.R relative to the script or repository root.")
+}
+
+source(file.path(resolve_project_dir(), "globals.R"))
 
 
 # =============================================================================
