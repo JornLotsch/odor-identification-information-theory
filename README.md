@@ -159,5 +159,5 @@ This repository is a technical companion to the paper: it makes the response-key
 
 Use this repository as the corresponding computational companion to the paper and the implementation layer used to generate the reported analyses. Please cite the associated manuscript as:
 
-Lötsch J, Hummel T, Himmelspach A. Information-theoretic design and optimization of response keys in forced-choice tests: an olfactory application. (in preparation)
+Lötsch J, Hummel T, Himmelspach A. Entropy-based design of response-key sequences in forced-choice olfactory identification tests. (submitted)
 
